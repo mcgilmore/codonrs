@@ -1,0 +1,32 @@
+version: 6
+environments:
+  default:
+    channels:
+    - url: https://conda.anaconda.org/conda-forge/
+    packages:
+      osx-arm64:
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/rust-1.84.0-h4ff7c5d_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/rust-std-aarch64-apple-darwin-1.84.0-hf6ec828_0.conda
+packages:
+- conda: https://conda.anaconda.org/conda-forge/osx-arm64/rust-1.84.0-h4ff7c5d_0.conda
+  sha256: 24367eaa937b113cd90308c3a503f13e0043f76997f8b0fdca83ae0200e723d5
+  md5: c36f037e209638e8713ed6abee2ce3d8
+  depends:
+  - rust-std-aarch64-apple-darwin 1.84.0 hf6ec828_0
+  arch: arm64
+  platform: osx
+  license: MIT
+  license_family: MIT
+  size: 208393099
+  timestamp: 1736476362423
+- conda: https://conda.anaconda.org/conda-forge/noarch/rust-std-aarch64-apple-darwin-1.84.0-hf6ec828_0.conda
+  sha256: 3d8155aa30c5b32cc41bdfe0a161cf84838499109e22e9c1a333eb170753d79a
+  md5: 5db6792d2b1e6c71034b60b90f44ac21
+  depends:
+  - __unix
+  constrains:
+  - rust >=1.84.0,<1.84.1.0a0
+  license: MIT
+  license_family: MIT
+  size: 32511793
+  timestamp: 1736473247984

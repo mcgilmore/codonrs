@@ -1,0 +1,14 @@
+[project]
+authors = ["mcgilmore <michael_gilmore@live.com>"]
+channels = ["conda-forge"]
+name = "codonrs"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+build = "cargo build"
+clean = "cargo clean"
+start = "cargo run"
+
+[dependencies]
+rust = ">=1.84.0,<1.85"

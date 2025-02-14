@@ -1,0 +1,12 @@
+
+# pixi environments
+.pixi
+*.egg-info
+
+
+# Added by cargo
+
+/target
+
+# Mac
+.DS_Store

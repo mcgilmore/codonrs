@@ -12,3 +12,4 @@
 .DS_Store
 
 cds_from_genomic.fna
+*.csv

@@ -182,12 +182,11 @@ fn write_rscu_to_csv(
         write!(file, "{}", seq_name)?;
         for codon in &codons {
             let rscu_value = codon_map.get(codon).unwrap_or(&0.0);
-            write!(file, ",{:.3}", rscu_value)?;
+            write!(file, ",{:.6}", rscu_value)?;
         }
         writeln!(file)?;
     }
 
-    println!("RSCU values saved to {}", filename);
     Ok(())
 }
 
@@ -206,6 +205,77 @@ fn translate_sequence(sequence: &str, table_id: u8) -> HashMap<String, usize> {
     }
 
     amino_acid_counts
+}
+
+/// Writes codon and amino acid counts to a CSV file.
+fn write_counts_to_csv(
+    filename_prefix: &str,
+    codon_data: &Vec<(String, HashMap<String, usize>)>,
+    amino_acid_data: &Vec<(String, HashMap<String, usize>)>,
+) -> std::io::Result<()> {
+    let codon_filename = format!("{}_codon.csv", filename_prefix);
+    let amino_filename = format!("{}_amino_acids.csv", filename_prefix);
+
+    // Create files
+    let mut codon_file = File::create(&codon_filename)?;
+    let mut amino_file = File::create(&amino_filename)?;
+
+    // Collect all unique codons and amino acids across sequences
+    let mut codon_set = HashSet::new();
+    let mut amino_acid_set = HashSet::new();
+
+    for (_, codon_map) in codon_data {
+        for codon in codon_map.keys() {
+            codon_set.insert(codon.clone());
+        }
+    }
+
+    for (_, amino_map) in amino_acid_data {
+        for amino in amino_map.keys() {
+            amino_acid_set.insert(amino.clone());
+        }
+    }
+
+    let mut codons: Vec<String> = codon_set.into_iter().collect();
+    let mut amino_acids: Vec<String> = amino_acid_set.into_iter().collect();
+    codons.sort(); // Ensure consistent order
+    amino_acids.sort();
+
+    // Write the CSV header for codons
+    write!(codon_file, "Sequence")?;
+    for codon in &codons {
+        write!(codon_file, ",{}", codon)?;
+    }
+    writeln!(codon_file)?;
+
+    // Write codon counts for each sequence
+    for (seq_name, codon_map) in codon_data {
+        write!(codon_file, "{}", seq_name)?;
+        for codon in &codons {
+            let count = codon_map.get(codon).unwrap_or(&0);
+            write!(codon_file, ",{}", count)?;
+        }
+        writeln!(codon_file)?;
+    }
+
+    // Write the CSV header for amino acids
+    write!(amino_file, "Sequence")?;
+    for amino in &amino_acids {
+        write!(amino_file, ",{}", amino)?;
+    }
+    writeln!(amino_file)?;
+
+    // Write amino acid counts for each sequence
+    for (seq_name, amino_map) in amino_acid_data {
+        write!(amino_file, "{}", seq_name)?;
+        for amino in &amino_acids {
+            let count = amino_map.get(amino).unwrap_or(&0);
+            write!(amino_file, ",{}", count)?;
+        }
+        writeln!(amino_file)?;
+    }
+
+    Ok(())
 }
 
 /// Read sequences from a multi-FASTA file
@@ -237,14 +307,13 @@ fn read_sequences_from_fasta(filename: &str) -> io::Result<Vec<(String, String)>
 }
 
 fn main() {
-    let args = Cli::parse(); // Parse command-line arguments
-    let mut rscu_results = Vec::new(); // Store all RSCU data for one CSV output
+    let args = Cli::parse();
+    let mut rscu_results = Vec::new();
+    let mut codon_counts_list = Vec::new();
+    let mut amino_acid_counts_list = Vec::new();
 
     match read_sequences_from_fasta(&args.input_file) {
         Ok(sequences) => {
-            let mut output_file =
-                File::create(&args.output_file).expect("Failed to create output file");
-
             for (seq_name, sequence) in sequences {
                 let codon_counts = parse_codons(&sequence);
 
@@ -259,27 +328,28 @@ fn main() {
                 let amino_acid_counts = translate_sequence(&sequence, args.translation_table);
                 let rscu_values = compute_rscu(&codon_counts, args.translation_table);
 
-                writeln!(output_file, ">{}", seq_name).unwrap();
-                writeln!(output_file, "Codon Composition:").unwrap();
-                for (codon, count) in &codon_counts {
-                    writeln!(output_file, "{}: {}", codon, count).unwrap();
-                }
-
-                writeln!(output_file, "\nAmino Acid Composition:").unwrap();
-                for (amino, count) in &amino_acid_counts {
-                    writeln!(output_file, "{}: {}", amino, count).unwrap();
-                }
-                writeln!(output_file, "\n").unwrap();
-
-                // Collect RSCU values for combined CSV output
+                // Store data for CSV output
                 rscu_results.push((seq_name.clone(), rscu_values));
+                codon_counts_list.push((seq_name.clone(), codon_counts));
+                amino_acid_counts_list.push((seq_name.clone(), amino_acid_counts));
             }
 
-            // Write all RSCU values to a single CSV file
+            // Write RSCU values to a single CSV file
             let rscu_filename = format!("{}_rscu.csv", args.output_file);
             write_rscu_to_csv(&rscu_filename, &rscu_results).unwrap();
 
-            println!("Results saved to {}", args.output_file);
+            // Write Codon & Amino Acid Counts to CSV
+            write_counts_to_csv(
+                &args.output_file,
+                &codon_counts_list,
+                &amino_acid_counts_list,
+            )
+            .unwrap();
+
+            println!(
+                "Results saved to:\n - {}_counts.csv\n - {}_amino_acids.csv\n - {}_rscu.csv",
+                &args.output_file, &args.output_file, &args.output_file,
+            );
         }
         Err(e) => eprintln!("Error reading file: {}", e),
     }

@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 
@@ -153,12 +153,38 @@ fn compute_rscu(
 }
 
 /// Writes RSCU values to a CSV file.
-fn write_rscu_to_csv(filename: &str, rscu_data: &HashMap<String, f64>) -> std::io::Result<()> {
+fn write_rscu_to_csv(
+    filename: &str,
+    rscu_data: &Vec<(String, HashMap<String, f64>)>,
+) -> std::io::Result<()> {
     let mut file = File::create(filename)?;
-    writeln!(file, "Codon,RSCU")?; // CSV Header
 
-    for (codon, rscu) in rscu_data {
-        writeln!(file, "{},{}", codon, rscu)?;
+    // Collect all unique codons across sequences to create CSV headers
+    let mut codon_set = HashSet::new();
+    for (_, codon_map) in rscu_data {
+        for codon in codon_map.keys() {
+            codon_set.insert(codon.clone());
+        }
+    }
+
+    let mut codons: Vec<String> = codon_set.into_iter().collect();
+    codons.sort(); // Ensure consistent order
+
+    // Write the CSV header
+    write!(file, "Sequence")?;
+    for codon in &codons {
+        write!(file, ",{}", codon)?;
+    }
+    writeln!(file)?;
+
+    // Write RSCU values for each sequence
+    for (seq_name, codon_map) in rscu_data {
+        write!(file, "{}", seq_name)?;
+        for codon in &codons {
+            let rscu_value = codon_map.get(codon).unwrap_or(&0.0);
+            write!(file, ",{:.3}", rscu_value)?;
+        }
+        writeln!(file)?;
     }
 
     println!("RSCU values saved to {}", filename);
@@ -212,6 +238,7 @@ fn read_sequences_from_fasta(filename: &str) -> io::Result<Vec<(String, String)>
 
 fn main() {
     let args = Cli::parse(); // Parse command-line arguments
+    let mut rscu_results = Vec::new(); // Store all RSCU data for one CSV output
 
     match read_sequences_from_fasta(&args.input_file) {
         Ok(sequences) => {
@@ -244,10 +271,13 @@ fn main() {
                 }
                 writeln!(output_file, "\n").unwrap();
 
-                // Write RSCU values to a CSV file
-                let rscu_filename = format!("{}_rscu.csv", seq_name);
-                write_rscu_to_csv(&rscu_filename, &rscu_values).unwrap();
+                // Collect RSCU values for combined CSV output
+                rscu_results.push((seq_name.clone(), rscu_values));
             }
+
+            // Write all RSCU values to a single CSV file
+            let rscu_filename = format!("{}_rscu.csv", args.output_file);
+            write_rscu_to_csv(&rscu_filename, &rscu_results).unwrap();
 
             println!("Results saved to {}", args.output_file);
         }

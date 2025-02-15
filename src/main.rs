@@ -1,5 +1,7 @@
 use clap::Parser;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 
@@ -22,77 +24,64 @@ struct Cli {
     translation_table: u8,
 }
 
-// Function to load NCBI translation tables
-fn get_ncbi_translation_table(table_id: u8) -> HashMap<&'static str, &'static str> {
-    match table_id {
-        1 => HashMap::from([
-            ("TTT", "F"),
-            ("TTC", "F"),
-            ("TTA", "L"),
-            ("TTG", "L"),
-            ("TCT", "S"),
-            ("TCC", "S"),
-            ("TCA", "S"),
-            ("TCG", "S"),
-            ("TAT", "Y"),
-            ("TAC", "Y"),
-            ("TAA", "*"),
-            ("TAG", "*"),
-            ("TGT", "C"),
-            ("TGC", "C"),
-            ("TGA", "*"),
-            ("TGG", "W"),
-            ("CTT", "L"),
-            ("CTC", "L"),
-            ("CTA", "L"),
-            ("CTG", "L"),
-            ("CCT", "P"),
-            ("CCC", "P"),
-            ("CCA", "P"),
-            ("CCG", "P"),
-            ("CAT", "H"),
-            ("CAC", "H"),
-            ("CAA", "Q"),
-            ("CAG", "Q"),
-            ("CGT", "R"),
-            ("CGC", "R"),
-            ("CGA", "R"),
-            ("CGG", "R"),
-            ("ATT", "I"),
-            ("ATC", "I"),
-            ("ATA", "I"),
-            ("ATG", "M"),
-            ("ACT", "T"),
-            ("ACC", "T"),
-            ("ACA", "T"),
-            ("ACG", "T"),
-            ("AAT", "N"),
-            ("AAC", "N"),
-            ("AAA", "K"),
-            ("AAG", "K"),
-            ("AGT", "S"),
-            ("AGC", "S"),
-            ("AGA", "R"),
-            ("AGG", "R"),
-            ("GTT", "V"),
-            ("GTC", "V"),
-            ("GTA", "V"),
-            ("GTG", "V"),
-            ("GCT", "A"),
-            ("GCC", "A"),
-            ("GCA", "A"),
-            ("GCG", "A"),
-            ("GAT", "D"),
-            ("GAC", "D"),
-            ("GAA", "E"),
-            ("GAG", "E"),
-            ("GGT", "G"),
-            ("GGC", "G"),
-            ("GGA", "G"),
-            ("GGG", "G"),
-        ]),
-        _ => panic!("Translation table {} not implemented!", table_id),
+#[derive(Debug, Clone)]
+struct GeneticCode {
+    id: String,
+    name: String,
+    codon_map: HashMap<String, String>,
+}
+
+/// A genetic code object, containing an id, name and translation table (codon_map)
+impl GeneticCode {
+    fn new() -> Self {
+        GeneticCode {
+            id: String::new(),
+            name: String::new(),
+            codon_map: HashMap::new(),
+        }
     }
+}
+
+/// Define the structure for the JSON format
+#[derive(Debug, Serialize, Deserialize)]
+struct GeneticCodeJSON {
+    name: Vec<String>,
+    id: u8,
+    ncbieaa: String,
+    sncbieaa: String,
+    base_mappings: HashMap<String, String>,
+}
+
+impl GeneticCodeJSON {
+    /// Convert the genetic code into a codon-to-amino-acid mapping
+    fn to_codon_map(&self) -> HashMap<String, String> {
+        let base1 = self.base_mappings.get("Base1").cloned().unwrap_or_else(|| String::new());
+        let base2 = self.base_mappings.get("Base2").cloned().unwrap_or_else(|| String::new());
+        let base3 = self.base_mappings.get("Base3").cloned().unwrap_or_else(|| String::new());
+
+        let mut codon_map = HashMap::new();
+
+        for (i, ((b1, b2), b3)) in base1.chars().zip(base2.chars()).zip(base3.chars()).enumerate() {
+            let codon = format!("{}{}{}", b1, b2, b3);
+            let amino_acid = self.ncbieaa.chars().nth(i).unwrap_or('*').to_string(); // Convert char to String
+            codon_map.insert(codon, amino_acid);
+        }
+
+        codon_map
+    }
+}
+
+/// Load the provided genetic_code.json data file
+fn load_genetic_codes(filename: &str) -> Result<Vec<GeneticCodeJSON>, Box<dyn Error>> {
+    let file = File::open(filename)?;
+    let reader = BufReader::new(file);
+    let genetic_codes: Vec<GeneticCodeJSON> = serde_json::from_reader(reader)?;
+    Ok(genetic_codes)
+}
+
+/// Get a genetic code from a GeneticCode object by a provided ID
+fn get_genetic_code_by_id<'a>(codes: &'a [GeneticCodeJSON], id: &u8) -> Option<&'a GeneticCodeJSON> {
+    codes.iter().find(|code| code.id == *id)
 }
 
 /// Parse codon content in sequence
@@ -112,23 +101,20 @@ fn parse_codons(sequence: &str) -> HashMap<String, usize> {
     codon_counts
 }
 
-fn compute_rscu(
-    codon_counts: &HashMap<String, usize>,
-    translation_table: u8,
-) -> HashMap<String, f64> {
-    let codon_table = get_ncbi_translation_table(translation_table);
+fn compute_rscu(codon_counts: &HashMap<String, usize>, code: &GeneticCode) -> HashMap<String, f64> {
+    let codon_table = &code.codon_map;
     let mut rscu_values = HashMap::new();
     let mut amino_acid_totals: HashMap<&str, usize> = HashMap::new();
     let mut synonymous_codons: HashMap<&str, Vec<&str>> = HashMap::new();
 
     // Group codons by their amino acid and count occurrences
-    for (codon, amino_acid) in &codon_table {
+    for (codon, amino_acid) in codon_table {
         synonymous_codons
             .entry(amino_acid)
             .or_insert(Vec::new())
             .push(codon);
         *amino_acid_totals.entry(amino_acid).or_insert(0) +=
-            codon_counts.get(*codon).copied().unwrap_or(0);
+            codon_counts.get(codon).copied().unwrap_or(0);
     }
 
     // Compute RSCU values
@@ -191,8 +177,8 @@ fn write_rscu_to_csv(
 }
 
 /// Translate DNA sequence into amino acids
-fn translate_sequence(sequence: &str, table_id: u8) -> HashMap<String, usize> {
-    let codon_table = get_ncbi_translation_table(table_id);
+fn translate_sequence(sequence: &str, code: &GeneticCode) -> HashMap<String, usize> {
+    let codon_table = &code.codon_map;
     let mut amino_acid_counts = HashMap::new();
 
     for codon in sequence.as_bytes().chunks(3) {
@@ -308,9 +294,31 @@ fn read_sequences_from_fasta(filename: &str) -> io::Result<Vec<(String, String)>
 
 fn main() {
     let args = Cli::parse();
+
     let mut rscu_results = Vec::new();
     let mut codon_counts_list = Vec::new();
     let mut amino_acid_counts_list = Vec::new();
+
+    let mut code = GeneticCode::new();
+
+    match load_genetic_codes("genetic_code.json") {
+        Ok(genetic_codes) => {
+            if let Some(selected_code) =
+                get_genetic_code_by_id(&genetic_codes, &args.translation_table)
+            {
+                code.id = selected_code.id.to_string();
+                code.name = selected_code.name.first().cloned().unwrap_or_else(|| String::new());
+                code.codon_map = selected_code.to_codon_map();
+                println!("Using genetic code {}: {}", code.id, code.name);
+            } else {
+                eprintln!(
+                    "Error: Genetic Code ID {} not found!",
+                    &args.translation_table
+                );
+            }
+        }
+        Err(e) => eprintln!("Failed to load genetic codes: {}", e),
+    }
 
     match read_sequences_from_fasta(&args.input_file) {
         Ok(sequences) => {
@@ -325,8 +333,8 @@ fn main() {
                     continue;
                 }
 
-                let amino_acid_counts = translate_sequence(&sequence, args.translation_table);
-                let rscu_values = compute_rscu(&codon_counts, args.translation_table);
+                let amino_acid_counts = translate_sequence(&sequence, &code);
+                let rscu_values = compute_rscu(&codon_counts, &code);
 
                 // Store data for CSV output
                 rscu_results.push((seq_name.clone(), rscu_values));

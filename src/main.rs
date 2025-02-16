@@ -22,6 +22,10 @@ struct Cli {
     /// NCBI translation table ID (default: 1)
     #[arg(short = 't', long = "table", default_value_t = 1)]
     translation_table: u8,
+
+    /// Flag to compute and output Z-score
+    #[arg(short = 'z', long = "zscore", default_value_t = false)]
+    compute_zscore: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -55,13 +59,30 @@ struct GeneticCodeJSON {
 impl GeneticCodeJSON {
     /// Convert the genetic code into a codon-to-amino-acid mapping
     fn to_codon_map(&self) -> HashMap<String, String> {
-        let base1 = self.base_mappings.get("Base1").cloned().unwrap_or_else(|| String::new());
-        let base2 = self.base_mappings.get("Base2").cloned().unwrap_or_else(|| String::new());
-        let base3 = self.base_mappings.get("Base3").cloned().unwrap_or_else(|| String::new());
+        let base1 = self
+            .base_mappings
+            .get("Base1")
+            .cloned()
+            .unwrap_or_else(|| String::new());
+        let base2 = self
+            .base_mappings
+            .get("Base2")
+            .cloned()
+            .unwrap_or_else(|| String::new());
+        let base3 = self
+            .base_mappings
+            .get("Base3")
+            .cloned()
+            .unwrap_or_else(|| String::new());
 
         let mut codon_map = HashMap::new();
 
-        for (i, ((b1, b2), b3)) in base1.chars().zip(base2.chars()).zip(base3.chars()).enumerate() {
+        for (i, ((b1, b2), b3)) in base1
+            .chars()
+            .zip(base2.chars())
+            .zip(base3.chars())
+            .enumerate()
+        {
             let codon = format!("{}{}{}", b1, b2, b3);
             let amino_acid = self.ncbieaa.chars().nth(i).unwrap_or('*').to_string(); // Convert char to String
             codon_map.insert(codon, amino_acid);
@@ -80,7 +101,10 @@ fn load_genetic_codes(filename: &str) -> Result<Vec<GeneticCodeJSON>, Box<dyn Er
 }
 
 /// Get a genetic code from a GeneticCode object by a provided ID
-fn get_genetic_code_by_id<'a>(codes: &'a [GeneticCodeJSON], id: &u8) -> Option<&'a GeneticCodeJSON> {
+fn get_genetic_code_by_id<'a>(
+    codes: &'a [GeneticCodeJSON],
+    id: &u8,
+) -> Option<&'a GeneticCodeJSON> {
     codes.iter().find(|code| code.id == *id)
 }
 
@@ -169,6 +193,108 @@ fn write_rscu_to_csv(
         for codon in &codons {
             let rscu_value = codon_map.get(codon).unwrap_or(&0.0);
             write!(file, ",{:.6}", rscu_value)?;
+        }
+        writeln!(file)?;
+    }
+
+    Ok(())
+}
+
+/// Compute the mean RSCU value for each codon
+fn compute_mean_rscu(rscu_results: &Vec<(String, HashMap<String, f64>)>) -> HashMap<String, f64> {
+    let mut total_rscu: HashMap<String, f64> = HashMap::new();
+    let mut gene_count = rscu_results.len() as f64;
+
+    for (_, rscu_map) in rscu_results {
+        for (codon, value) in rscu_map {
+            *total_rscu.entry(codon.clone()).or_insert(0.0) += value;
+        }
+    }
+
+    let mut mean_rscu = HashMap::new();
+    for (codon, total_value) in total_rscu {
+        mean_rscu.insert(codon, total_value / gene_count);
+    }
+
+    mean_rscu
+}
+
+/// Compute standard deviation of RSCU values
+fn compute_std_rscu(
+    rscu_results: &Vec<(String, HashMap<String, f64>)>,
+    mean_rscu: &HashMap<String, f64>,
+) -> HashMap<String, f64> {
+    let mut variance: HashMap<String, f64> = HashMap::new();
+    let gene_count = rscu_results.len() as f64;
+
+    for (_, rscu_map) in rscu_results {
+        for (codon, value) in rscu_map {
+            let mean = mean_rscu.get(codon).unwrap_or(&0.0);
+            let diff = value - mean;
+            *variance.entry(codon.clone()).or_insert(0.0) += diff * diff;
+        }
+    }
+
+    let mut std_dev = HashMap::new();
+    for (codon, var) in variance {
+        std_dev.insert(codon, (var / gene_count).sqrt());
+    }
+
+    std_dev
+}
+
+/// Compute Z-score from RSCU values
+fn compute_rscu_z_scores(
+    rscu_results: &Vec<(String, HashMap<String, f64>)>,
+    mean_rscu: &HashMap<String, f64>,
+    std_rscu: &HashMap<String, f64>,
+) -> Vec<(String, HashMap<String, f64>)> {
+    let mut z_scores = Vec::new();
+
+    for (gene, rscu_map) in rscu_results {
+        let mut gene_z_scores = HashMap::new();
+        for (codon, value) in rscu_map {
+            let mean = mean_rscu.get(codon).unwrap_or(&0.0);
+            let std_dev = std_rscu.get(codon).unwrap_or(&1.0); // Avoid division by zero
+            let z_score = (value - mean) / std_dev;
+            gene_z_scores.insert(codon.clone(), z_score);
+        }
+        z_scores.push((gene.clone(), gene_z_scores));
+    }
+
+    z_scores
+}
+
+/// Write Z-scores to a CSV file
+fn write_z_scores_to_csv(
+    filename: &str,
+    z_scores: &Vec<(String, HashMap<String, f64>)>,
+) -> io::Result<()> {
+    let mut file = File::create(filename)?;
+
+    let mut codon_set = HashSet::new();
+    for (_, codon_map) in z_scores {
+        for codon in codon_map.keys() {
+            codon_set.insert(codon.clone());
+        }
+    }
+
+    let mut codons: Vec<String> = codon_set.into_iter().collect();
+    codons.sort();
+
+    // Write header
+    write!(file, "Gene")?;
+    for codon in &codons {
+        write!(file, ",{}", codon)?;
+    }
+    writeln!(file)?;
+
+    // Write Z-scores for each gene
+    for (gene, codon_map) in z_scores {
+        write!(file, "{}", gene)?;
+        for codon in &codons {
+            let z_score = codon_map.get(codon).unwrap_or(&0.0);
+            write!(file, ",{:.6}", z_score)?;
         }
         writeln!(file)?;
     }
@@ -307,7 +433,11 @@ fn main() {
                 get_genetic_code_by_id(&genetic_codes, &args.translation_table)
             {
                 code.id = selected_code.id.to_string();
-                code.name = selected_code.name.first().cloned().unwrap_or_else(|| String::new());
+                code.name = selected_code
+                    .name
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| String::new());
                 code.codon_map = selected_code.to_codon_map();
                 println!("Using genetic code {}: {}", code.id, code.name);
             } else {
@@ -342,10 +472,6 @@ fn main() {
                 amino_acid_counts_list.push((seq_name.clone(), amino_acid_counts));
             }
 
-            // Write RSCU values to a single CSV file
-            let rscu_filename = format!("{}_rscu.csv", args.output_file);
-            write_rscu_to_csv(&rscu_filename, &rscu_results).unwrap();
-
             // Write Codon & Amino Acid Counts to CSV
             write_counts_to_csv(
                 &args.output_file,
@@ -353,6 +479,25 @@ fn main() {
                 &amino_acid_counts_list,
             )
             .unwrap();
+
+            // Write RSCU values to a single CSV file
+            let rscu_filename = format!("{}_rscu.csv", args.output_file);
+            write_rscu_to_csv(&rscu_filename, &rscu_results).unwrap();
+
+            if args.compute_zscore {
+                println!("Computing and saving RSCU Z-scores...");
+
+                // Compute RSCU Z-scores
+                let mean_rscu = compute_mean_rscu(&rscu_results);
+                let std_rscu = compute_std_rscu(&rscu_results, &mean_rscu);
+                let rscu_z_scores = compute_rscu_z_scores(&rscu_results, &mean_rscu, &std_rscu);
+
+                // Write RSCU Z-scores to a CSV file
+                let z_score_filename = format!("{}_rscu_z_scores.csv", args.output_file);
+                write_z_scores_to_csv(&z_score_filename, &rscu_z_scores).unwrap();
+
+                println!("RSCU Z-scores saved to {}", z_score_filename);
+            }
 
             println!(
                 "Results saved to:\n - {}_counts.csv\n - {}_amino_acids.csv\n - {}_rscu.csv",

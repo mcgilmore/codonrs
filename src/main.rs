@@ -5,6 +5,9 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 
+/// Load embedded JSON file at compile-time
+static CODE_FILE: &str = include_str!("genetic_code.json");
+
 /// Command-line arguments using Clap
 #[derive(Parser)]
 #[command(name = "CodonRS")]
@@ -93,10 +96,8 @@ impl GeneticCodeJSON {
 }
 
 /// Load the provided genetic_code.json data file
-fn load_genetic_codes(filename: &str) -> Result<Vec<GeneticCodeJSON>, Box<dyn Error>> {
-    let file = File::open(filename)?;
-    let reader = BufReader::new(file);
-    let genetic_codes: Vec<GeneticCodeJSON> = serde_json::from_reader(reader)?;
+fn load_embedded_genetic_codes() -> Result<Vec<GeneticCodeJSON>, Box<dyn Error>> {
+    let genetic_codes: Vec<GeneticCodeJSON> = serde_json::from_str(CODE_FILE)?;
     Ok(genetic_codes)
 }
 
@@ -427,7 +428,7 @@ fn main() {
 
     let mut code = GeneticCode::new();
 
-    match load_genetic_codes("genetic_code.json") {
+    match load_embedded_genetic_codes() {
         Ok(genetic_codes) => {
             if let Some(selected_code) =
                 get_genetic_code_by_id(&genetic_codes, &args.translation_table)

@@ -205,7 +205,7 @@ fn write_rscu_to_csv(
 /// Compute the mean RSCU value for each codon
 fn compute_mean_rscu(rscu_results: &Vec<(String, HashMap<String, f64>)>) -> HashMap<String, f64> {
     let mut total_rscu: HashMap<String, f64> = HashMap::new();
-    let mut gene_count = rscu_results.len() as f64;
+    let gene_count = rscu_results.len() as f64;
 
     for (_, rscu_map) in rscu_results {
         for (codon, value) in rscu_map {

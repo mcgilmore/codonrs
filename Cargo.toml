@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0"
 repository = "https://github.com/mcgilmore/codonrs"
+description = "Calculate relative synonymous codon usage for coding DNA sequences in a fasta file"
 
 [dependencies]
 bio = "2.0.3"

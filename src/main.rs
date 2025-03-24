@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
+use tqdm::Iter;
 
 /// Load embedded JSON file at compile-time
 static CODE_FILE: &str = include_str!("genetic_code.json");
@@ -453,7 +454,7 @@ fn main() {
 
     match read_sequences_from_fasta(&args.input_file) {
         Ok(sequences) => {
-            for (seq_name, sequence) in sequences {
+            for (seq_name, sequence) in sequences.iter().tqdm() {
                 let codon_counts = parse_codons(&sequence);
 
                 if codon_counts.is_empty() {

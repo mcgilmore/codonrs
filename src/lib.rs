@@ -6,10 +6,10 @@ pub mod analysis {
     use std::fs::File;
     use std::io::{self, BufRead, BufReader, Write};
 
-    /// A context holding precomputed state for analysis.
+    static CODE_FILE: &str = include_str!("genetic_code.json");
+
     pub struct AnalysisContext {
-        /// The codon to amino acid mapping.
-        pub codon_map: HashMap<String, String>,
+
     }
 
     impl AnalysisContext {
@@ -17,7 +17,7 @@ pub mod analysis {
         pub fn new() -> Self {
             let codon_map = Self::load_embedded_genetic_codes();
             let mut code = GeneticCode::new();
-            let translation_table: &u8 = 1;
+            let translation_table: u8 = 1;
             
             match Self::load_embedded_genetic_codes() {
                 Ok(genetic_codes) => {
@@ -34,21 +34,13 @@ pub mod analysis {
                         println!("Using genetic code {}: {}", code.id, code.name);
                     } else {
                         eprintln!(
-                            "Error: Genetic Code ID {} not found!",
-                            &args.translation_table
+                            "Error: Genetic Code ID {} not found!", &translation_table
                         );
                     }
                 }
                 Err(e) => eprintln!("Failed to load genetic codes: {}", e)
             }
-            AnalysisContext { codon_map }
-        }
-
-        /// Loads the codon map.
-        fn load_codon_map() -> HashMap<String, String> {
-            let mut map = HashMap::new();
-            
-            map
+            AnalysisContext { }
         }
 
         /// Load the provided genetic_code.json data file
@@ -58,12 +50,10 @@ pub mod analysis {
         }
     }
 
-    
-
     /// TODO: Load genetic code function
 
     #[derive(Debug, Clone)]
-    struct GeneticCode {
+    pub struct GeneticCode {
         id: String,
         name: String,
         codon_map: HashMap<String, String>,
@@ -71,7 +61,7 @@ pub mod analysis {
 
     /// A genetic code object, containing an id, name and translation table (codon_map)
     impl GeneticCode {
-        fn new() -> Self {
+        pub fn new() -> Self {
             GeneticCode {
                 id: String::new(),
                 name: String::new(),
@@ -127,7 +117,7 @@ pub mod analysis {
     }
 
     /// Get a genetic code from a GeneticCode object by a provided ID
-    fn get_genetic_code_by_id<'a>(
+    pub fn get_genetic_code_by_id<'a>(
         codes: &'a [GeneticCodeJSON],
         id: &u8,
     ) -> Option<&'a GeneticCodeJSON> {
@@ -138,13 +128,12 @@ pub mod analysis {
     ///
     /// # Arguments
     ///
-    /// * `sequence` - A string slice representing the DNA sequence.
+    /// * `sequence` - A string representing the DNA sequence.
     ///
     /// # Returns
     ///
     /// A result with a HashMap mapping codon strings to their occurrence count.
-    /// Parse codon content in sequence
-    pub fn parse_codons(sequence: &str) -> HashMap<String, usize> {
+    pub fn count_codons(sequence: &str) -> HashMap<String, usize> {
         let mut codon_counts = HashMap::new();
 
         // Ignore sequences that are not a multiple of 3
@@ -237,7 +226,7 @@ pub mod analysis {
     }
 
     /// Compute the mean RSCU value for each codon
-    fn compute_mean_rscu(rscu_results: &Vec<(String, HashMap<String, f64>)>) -> HashMap<String, f64> {
+    pub fn compute_mean_rscu(rscu_results: &Vec<(String, HashMap<String, f64>)>) -> HashMap<String, f64> {
         let mut total_rscu: HashMap<String, f64> = HashMap::new();
         let gene_count = rscu_results.len() as f64;
 
@@ -256,7 +245,7 @@ pub mod analysis {
     }
 
     /// Compute standard deviation of RSCU values
-    fn compute_std_rscu(
+    pub fn compute_std_rscu(
         rscu_results: &Vec<(String, HashMap<String, f64>)>,
         mean_rscu: &HashMap<String, f64>,
     ) -> HashMap<String, f64> {
@@ -280,7 +269,7 @@ pub mod analysis {
     }
 
     /// Compute Z-score from RSCU values
-    fn compute_rscu_z_scores(
+    pub fn compute_rscu_z_scores(
         rscu_results: &Vec<(String, HashMap<String, f64>)>,
         mean_rscu: &HashMap<String, f64>,
         std_rscu: &HashMap<String, f64>,
@@ -302,7 +291,7 @@ pub mod analysis {
     }
 
     /// Write Z-scores to a CSV file
-    fn write_z_scores_to_csv(
+    pub fn write_z_scores_to_csv(
         filename: &str,
         z_scores: &Vec<(String, HashMap<String, f64>)>,
     ) -> io::Result<()> {
@@ -339,7 +328,7 @@ pub mod analysis {
     }
 
     /// Translate DNA sequence into amino acids
-    fn translate_sequence(sequence: &str, code: &GeneticCode) -> HashMap<String, usize> {
+    pub fn translate_sequence(sequence: &str, code: &GeneticCode) -> HashMap<String, usize> {
         let codon_table = &code.codon_map;
         let mut amino_acid_counts = HashMap::new();
 
@@ -356,7 +345,7 @@ pub mod analysis {
     }
 
     /// Writes codon and amino acid counts to a CSV file.
-    fn write_counts_to_csv(
+    pub fn write_counts_to_csv(
         filename_prefix: &str,
         codon_data: &Vec<(String, HashMap<String, usize>)>,
         amino_acid_data: &Vec<(String, HashMap<String, usize>)>,
@@ -427,7 +416,7 @@ pub mod analysis {
     }
 
     /// Read sequences from a multi-FASTA file
-    fn read_sequences_from_fasta(filename: &str) -> io::Result<Vec<(String, String)>> {
+    pub fn read_sequences_from_fasta(filename: &str) -> io::Result<Vec<(String, String)>> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
 

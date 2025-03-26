@@ -49,7 +49,7 @@ fn main() {
                 }
 
                 let amino_acid_counts = analysis::translate_sequence(&sequence, &code);
-                let rscu_values = analysis::compute_rscu(&codon_counts, &code);
+                let rscu_values = analysis::compute_rscu(&codon_counts, &args.translation_table);
 
                 // Store data for CSV output
                 rscu_results.push((seq_name.clone(), rscu_values));

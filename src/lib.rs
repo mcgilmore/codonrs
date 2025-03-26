@@ -8,49 +8,11 @@ pub mod analysis {
 
     static CODE_FILE: &str = include_str!("genetic_code.json");
 
-    pub struct AnalysisContext {
-
+    /// Load the provided genetic_code.json data file
+    fn load_embedded_genetic_codes() -> Result<Vec<GeneticCodeJSON>, Box<dyn Error>> {
+        let genetic_codes: Vec<GeneticCodeJSON> = serde_json::from_str(CODE_FILE)?;
+        Ok(genetic_codes)
     }
-
-    impl AnalysisContext {
-        /// Create a new analysis context, performing any necessary initialization.
-        pub fn new() -> Self {
-            let codon_map = Self::load_embedded_genetic_codes();
-            let mut code = GeneticCode::new();
-            let translation_table: u8 = 1;
-            
-            match Self::load_embedded_genetic_codes() {
-                Ok(genetic_codes) => {
-                    if let Some(selected_code) =
-                        get_genetic_code_by_id(&genetic_codes, &translation_table)
-                    {
-                        code.id = selected_code.id.to_string();
-                        code.name = selected_code
-                            .name
-                            .first()
-                            .cloned()
-                            .unwrap_or_else(|| String::new());
-                        code.codon_map = selected_code.to_codon_map();
-                        println!("Using genetic code {}: {}", code.id, code.name);
-                    } else {
-                        eprintln!(
-                            "Error: Genetic Code ID {} not found!", &translation_table
-                        );
-                    }
-                }
-                Err(e) => eprintln!("Failed to load genetic codes: {}", e)
-            }
-            AnalysisContext { }
-        }
-
-        /// Load the provided genetic_code.json data file
-        fn load_embedded_genetic_codes() -> Result<Vec<GeneticCodeJSON>, Box<dyn Error>> {
-            let genetic_codes: Vec<GeneticCodeJSON> = serde_json::from_str(CODE_FILE)?;
-            Ok(genetic_codes)
-        }
-    }
-
-    /// TODO: Load genetic code function
 
     #[derive(Debug, Clone)]
     pub struct GeneticCode {
@@ -117,11 +79,27 @@ pub mod analysis {
     }
 
     /// Get a genetic code from a GeneticCode object by a provided ID
-    pub fn get_genetic_code_by_id<'a>(
+    fn get_genetic_code_by_id<'a>(
         codes: &'a [GeneticCodeJSON],
         id: &u8,
     ) -> Option<&'a GeneticCodeJSON> {
         codes.iter().find(|code| code.id == *id)
+    }
+
+    pub fn genetic_code_from_id(translation_table: &u8) -> GeneticCode {
+        let mut code = GeneticCode::new();
+        if let Ok(json_codes) = load_embedded_genetic_codes() {
+            if let Some(selected_code) = get_genetic_code_by_id(&json_codes, translation_table) {
+                code.id = selected_code.id.to_string();
+                code.name = selected_code.name.first().cloned().unwrap_or_default();
+                code.codon_map = selected_code.to_codon_map();
+            } else {
+                eprintln!("Error: Genetic Code ID {} not found!", translation_table);
+            }
+        } else {
+            eprintln!("Failed to load genetic codes");
+        }
+        code
     }
 
     /// Parses a DNA sequence into codon counts.
@@ -150,7 +128,9 @@ pub mod analysis {
     }
 
     /// Computes the Relative Synonymous Codon Usage (RSCU) values.
-    pub fn compute_rscu(codon_counts: &HashMap<String, usize>, code: &GeneticCode) -> HashMap<String, f64> {
+    /// TODO: Refactor so that genetic_code_from_id() is not called every time
+    pub fn compute_rscu(codon_counts: &HashMap<String, usize>, translation_table: &u8) -> HashMap<String, f64> {
+        let code = genetic_code_from_id(&translation_table);
         let codon_table = &code.codon_map;
         let mut rscu_values = HashMap::new();
         let mut amino_acid_totals: HashMap<&str, usize> = HashMap::new();

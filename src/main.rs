@@ -1,7 +1,6 @@
 use clap::Parser;
 use tqdm::Iter;
 use codonrs::analysis;
-use codonrs::analysis::GeneticCode;
 
 /// Command-line arguments using Clap
 #[derive(Parser)]
@@ -33,10 +32,11 @@ fn main() {
     let mut codon_counts_list = Vec::new();
     let mut amino_acid_counts_list = Vec::new();
 
-    let code = GeneticCode::new();
-
+    let code = analysis::genetic_code_from_id(&args.translation_table);
+    
     match analysis::read_sequences_from_fasta(&args.input_file) {
         Ok(sequences) => {
+            print!("Calculating codon counts and RSCU values for {} sequences...\n", sequences.len());
             for (seq_name, sequence) in sequences.iter().tqdm() {
                 let codon_counts = analysis::count_codons(&sequence);
 
@@ -48,8 +48,8 @@ fn main() {
                     continue;
                 }
 
-                let amino_acid_counts = analysis::translate_sequence(&sequence, &code);
-                let rscu_values = analysis::compute_rscu(&codon_counts, &args.translation_table);
+                let amino_acid_counts = analysis::count_amino_acids(&sequence, &code);
+                let rscu_values = analysis::compute_rscu(&codon_counts, &code);
 
                 // Store data for CSV output
                 rscu_results.push((seq_name.clone(), rscu_values));
@@ -57,6 +57,7 @@ fn main() {
                 amino_acid_counts_list.push((seq_name.clone(), amino_acid_counts));
             }
 
+            print!("Writing results to CSV...\n");
             // Write Codon & Amino Acid Counts to CSV
             analysis::write_counts_to_csv(
                 &args.output_file,

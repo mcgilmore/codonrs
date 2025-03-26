@@ -128,9 +128,16 @@ pub mod analysis {
     }
 
     /// Computes the Relative Synonymous Codon Usage (RSCU) values.
-    /// TODO: Refactor so that genetic_code_from_id() is not called every time
-    pub fn compute_rscu(codon_counts: &HashMap<String, usize>, translation_table: &u8) -> HashMap<String, f64> {
-        let code = genetic_code_from_id(&translation_table);
+    ///
+    /// # Arguments
+    ///
+    /// * codon_counts - A hashmap with codon counts for the sequence.
+    /// * code - a GeneticCode object to be used for codon translation
+    ///
+    /// # Returns
+    ///
+    /// A result with a HashMap mapping codon strings to their RSCU value
+    pub fn compute_rscu(codon_counts: &HashMap<String, usize>, code: &GeneticCode) -> HashMap<String, f64> {
         let codon_table = &code.codon_map;
         let mut rscu_values = HashMap::new();
         let mut amino_acid_totals: HashMap<&str, usize> = HashMap::new();
@@ -307,8 +314,17 @@ pub mod analysis {
         Ok(())
     }
 
-    /// Translate DNA sequence into amino acids
-    pub fn translate_sequence(sequence: &str, code: &GeneticCode) -> HashMap<String, usize> {
+    /// Counts the amino acids for a CDS
+    ///
+    /// # Arguments
+    ///
+    /// * sequence: a str of the sequence to be analysed
+    /// * code: a GeneticCode object to be used for codon translation
+    ///
+    /// # Returns
+    ///
+    /// A result with a HashMap mapping amino acids to their count
+    pub fn count_amino_acids(sequence: &str, code: &GeneticCode) -> HashMap<String, usize> {
         let codon_table = &code.codon_map;
         let mut amino_acid_counts = HashMap::new();
 

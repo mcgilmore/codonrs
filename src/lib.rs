@@ -86,6 +86,15 @@ pub mod analysis {
         codes.iter().find(|code| code.id == *id)
     }
 
+    /// Returns a GeneticCode object give a translation table id (integer)
+    ///
+    /// # Arguments
+    ///
+    /// * `translation_table`: u8 representing the translation table
+    ///
+    /// # Returns
+    ///
+    /// GeneticCode object containing translation table of choice
     pub fn genetic_code_from_id(translation_table: &u8) -> GeneticCode {
         let mut code = GeneticCode::new();
         if let Ok(json_codes) = load_embedded_genetic_codes() {
@@ -340,7 +349,17 @@ pub mod analysis {
         amino_acid_counts
     }
 
-    /// Writes codon and amino acid counts to a CSV file.
+    /// Writes codon and amino acid counts to a CSV file
+    ///
+    /// # Arguments
+    ///
+    /// * filename_prefix: str to be used as prefix for output files
+    /// * codon_data: The codon counts to be written
+    /// * amino_acid_data: The amino acid counts to be written
+    /// 
+    /// # Returns
+    ///
+    /// A result with two output files: `prefix`_codon.csv for codons and `prefix`_amino_acids.csv for amino acids
     pub fn write_counts_to_csv(
         filename_prefix: &str,
         codon_data: &Vec<(String, HashMap<String, usize>)>,
@@ -412,6 +431,16 @@ pub mod analysis {
     }
 
     /// Read sequences from a multi-FASTA file
+    ///
+    /// # Arguments
+    ///
+    /// * filename_prefix: str to be used as prefix for output files
+    /// * codon_data: The codon counts to be written
+    /// * amino_acid_data: The amino acid counts to be written
+    /// 
+    /// # Returns
+    ///
+    /// A result with two output files: `prefix`_codon.csv for codons and `prefix`_amino_acids.csv for amino acids
     pub fn read_sequences_from_fasta(filename: &str) -> io::Result<Vec<(String, String)>> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);

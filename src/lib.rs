@@ -86,7 +86,7 @@ pub mod analysis {
         codes.iter().find(|code| code.id == *id)
     }
 
-    /// Returns a GeneticCode object give a translation table id (integer)
+    /// Return a GeneticCode object give a translation table id (integer)
     ///
     /// # Arguments
     ///
@@ -111,7 +111,7 @@ pub mod analysis {
         code
     }
 
-    /// Parses a DNA sequence into codon counts.
+    /// Parse a DNA sequence into codon counts.
     ///
     /// # Arguments
     ///
@@ -136,7 +136,7 @@ pub mod analysis {
         codon_counts
     }
 
-    /// Computes the Relative Synonymous Codon Usage (RSCU) values.
+    /// Compute Relative Synonymous Codon Usage (RSCU) values.
     ///
     /// # Arguments
     ///
@@ -183,7 +183,7 @@ pub mod analysis {
         rscu_values
     }
 
-    /// Writes RSCU values to a CSV file.
+    /// Write RSCU values to a CSV file.
     pub fn write_rscu_to_csv(
         filename: &str,
         rscu_data: &Vec<(String, HashMap<String, f64>)>,
@@ -323,7 +323,7 @@ pub mod analysis {
         Ok(())
     }
 
-    /// Counts the amino acids for a CDS
+    /// Count the amino acids for a CDS
     ///
     /// # Arguments
     ///
@@ -349,7 +349,7 @@ pub mod analysis {
         amino_acid_counts
     }
 
-    /// Writes codon and amino acid counts to a CSV file
+    /// Write codon and amino acid counts to a CSV file
     ///
     /// # Arguments
     ///

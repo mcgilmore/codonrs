@@ -1,4 +1,4 @@
-# codonrs v0.2
+# codonrs v0.2.1
 Calculate relative synonymous codon usage (RSCU) for coding DNA sequences (CDS)
 
 # Usage

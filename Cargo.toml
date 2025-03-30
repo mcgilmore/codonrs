@@ -1,6 +1,6 @@
 [package]
 name = "codonrs"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 license = "GPL-3.0"
 repository = "https://github.com/mcgilmore/codonrs"
@@ -13,4 +13,4 @@ clap = { version = "4.5.32", features = ["derive"] }
 rayon = "1.10.0"
 serde = "1.0.217"
 serde_json = "1.0.138"
-tqdm = "0.7.0"
+simple-tqdm = { version = "0.2.0", features = ["rayon"] }

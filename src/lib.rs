@@ -137,6 +137,22 @@ pub mod analysis {
         codon_counts
     }
 
+    /// Count codons for each sequence in parallel.
+    ///
+    /// # Arguments
+    ///
+    /// * `sequences` - A vector of tuples, where each tuple contains a sequence name and the DNA sequence string.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tuples, where each tuple contains the sequence name and its corresponding codon counts.
+    pub fn count_codons_for_sequences(sequences: &Vec<(String, String)>) -> Vec<(String, HashMap<String, usize>)> {
+        use rayon::prelude::*;
+        sequences.par_iter()
+            .map(|(name, sequence)| (name.clone(), count_codons(sequence)))
+            .collect()
+    }
+
     /// Compute Relative Synonymous Codon Usage (RSCU) values.
     ///
     /// # Arguments
@@ -148,37 +164,37 @@ pub mod analysis {
     ///
     /// A result with a HashMap mapping codon strings to their RSCU value
     pub fn compute_rscu(codon_counts: &HashMap<String, usize>, code: &GeneticCode) -> HashMap<String, f64> {
-    use rayon::prelude::*;
-    
-    let codon_table = &code.codon_map;
-    let mut amino_acid_totals: HashMap<&str, usize> = HashMap::new();
-    let mut synonymous_codons: HashMap<&str, Vec<&str>> = HashMap::new();
-    
-    // Group codons by their amino acid and count occurrences
-    for (codon, amino_acid) in codon_table {
-        synonymous_codons
-            .entry(amino_acid)
-            .or_insert_with(Vec::new)
-            .push(codon);
-        *amino_acid_totals.entry(amino_acid).or_insert(0) += codon_counts.get(codon).copied().unwrap_or(0);
-    }
-    
-    // Compute RSCU values in parallel
-    let rscu_pairs: Vec<(String, f64)> = synonymous_codons.par_iter()
-        .flat_map(|(amino_acid, codons)| {
-            let total_codon_count = amino_acid_totals.get(amino_acid).copied().unwrap_or(0) as f64;
-            let num_codons = codons.len() as f64;
-            codons.par_iter().map(move |codon| {
-                let observed = *codon_counts.get(*codon).unwrap_or(&0) as f64;
-                let expected = total_codon_count / num_codons;
-                let rscu = if expected > 0.0 { observed / expected } else { 0.0 };
-                ((*codon).to_string(), rscu)
+        use rayon::prelude::*;
+        
+        let codon_table = &code.codon_map;
+        let mut amino_acid_totals: HashMap<&str, usize> = HashMap::new();
+        let mut synonymous_codons: HashMap<&str, Vec<&str>> = HashMap::new();
+        
+        // Group codons by their amino acid and count occurrences
+        for (codon, amino_acid) in codon_table {
+            synonymous_codons
+                .entry(amino_acid)
+                .or_insert_with(Vec::new)
+                .push(codon);
+            *amino_acid_totals.entry(amino_acid).or_insert(0) += codon_counts.get(codon).copied().unwrap_or(0);
+        }
+        
+        // Compute RSCU values in parallel
+        let rscu_pairs: Vec<(String, f64)> = synonymous_codons.par_iter()
+            .flat_map(|(amino_acid, codons)| {
+                let total_codon_count = amino_acid_totals.get(amino_acid).copied().unwrap_or(0) as f64;
+                let num_codons = codons.len() as f64;
+                codons.par_iter().map(move |codon| {
+                    let observed = *codon_counts.get(*codon).unwrap_or(&0) as f64;
+                    let expected = total_codon_count / num_codons;
+                    let rscu = if expected > 0.0 { observed / expected } else { 0.0 };
+                    ((*codon).to_string(), rscu)
+                })
             })
-        })
-        .collect();
-    
-    rscu_pairs.into_iter().collect()
-}
+            .collect();
+        
+        rscu_pairs.into_iter().collect()
+    }
 
     /// Write RSCU values to a CSV file.
     pub fn write_rscu_to_csv(

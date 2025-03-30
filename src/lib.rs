@@ -5,6 +5,7 @@ pub mod analysis {
     use std::error::Error;
     use std::fs::File;
     use std::io::{self, BufRead, BufReader, Write};
+    use rayon::prelude::*;
 
     static CODE_FILE: &str = include_str!("genetic_code.json");
 
@@ -147,41 +148,37 @@ pub mod analysis {
     ///
     /// A result with a HashMap mapping codon strings to their RSCU value
     pub fn compute_rscu(codon_counts: &HashMap<String, usize>, code: &GeneticCode) -> HashMap<String, f64> {
-        let codon_table = &code.codon_map;
-        let mut rscu_values = HashMap::new();
-        let mut amino_acid_totals: HashMap<&str, usize> = HashMap::new();
-        let mut synonymous_codons: HashMap<&str, Vec<&str>> = HashMap::new();
+    use rayon::prelude::*;
     
-        // Group codons by their amino acid and count occurrences
-        for (codon, amino_acid) in codon_table {
-            synonymous_codons
-                .entry(amino_acid)
-                .or_insert(Vec::new())
-                .push(codon);
-            *amino_acid_totals.entry(amino_acid).or_insert(0) +=
-                codon_counts.get(codon).copied().unwrap_or(0);
-        }
+    let codon_table = &code.codon_map;
+    let mut amino_acid_totals: HashMap<&str, usize> = HashMap::new();
+    let mut synonymous_codons: HashMap<&str, Vec<&str>> = HashMap::new();
     
-        // Compute RSCU values
-        for (amino_acid, codons) in &synonymous_codons {
+    // Group codons by their amino acid and count occurrences
+    for (codon, amino_acid) in codon_table {
+        synonymous_codons
+            .entry(amino_acid)
+            .or_insert_with(Vec::new)
+            .push(codon);
+        *amino_acid_totals.entry(amino_acid).or_insert(0) += codon_counts.get(codon).copied().unwrap_or(0);
+    }
+    
+    // Compute RSCU values in parallel
+    let rscu_pairs: Vec<(String, f64)> = synonymous_codons.par_iter()
+        .flat_map(|(amino_acid, codons)| {
             let total_codon_count = amino_acid_totals.get(amino_acid).copied().unwrap_or(0) as f64;
             let num_codons = codons.len() as f64;
-    
-            for codon in codons {
+            codons.par_iter().map(move |codon| {
                 let observed = *codon_counts.get(*codon).unwrap_or(&0) as f64;
                 let expected = total_codon_count / num_codons;
-                let rscu = if expected > 0.0 {
-                    observed / expected
-                } else {
-                    0.0
-                };
+                let rscu = if expected > 0.0 { observed / expected } else { 0.0 };
+                ((*codon).to_string(), rscu)
+            })
+        })
+        .collect();
     
-                rscu_values.insert((*codon).to_string(), rscu);
-            }
-        }
-    
-        rscu_values
-    }
+    rscu_pairs.into_iter().collect()
+}
 
     /// Write RSCU values to a CSV file.
     pub fn write_rscu_to_csv(
@@ -270,20 +267,19 @@ pub mod analysis {
         mean_rscu: &HashMap<String, f64>,
         std_rscu: &HashMap<String, f64>,
     ) -> Vec<(String, HashMap<String, f64>)> {
-        let mut z_scores = Vec::new();
-
-        for (gene, rscu_map) in rscu_results {
-            let mut gene_z_scores = HashMap::new();
-            for (codon, value) in rscu_map {
-                let mean = mean_rscu.get(codon).unwrap_or(&0.0);
-                let std_dev = std_rscu.get(codon).unwrap_or(&1.0); // Avoid division by zero
-                let z_score = (value - mean) / std_dev;
-                gene_z_scores.insert(codon.clone(), z_score);
-            }
-            z_scores.push((gene.clone(), gene_z_scores));
-        }
-
-        z_scores
+        rscu_results.par_iter()
+            .map(|(gene, rscu_map)| {
+                let gene_z_scores: HashMap<String, f64> = rscu_map.iter()
+                    .map(|(codon, value)| {
+                        let mean = mean_rscu.get(codon).unwrap_or(&0.0);
+                        let std_dev = std_rscu.get(codon).unwrap_or(&1.0); // Avoid division by zero
+                        let z_score = (value - mean) / std_dev;
+                        (codon.clone(), z_score)
+                    })
+                    .collect();
+                (gene.clone(), gene_z_scores)
+            })
+            .collect()
     }
 
     /// Write Z-scores to a CSV file

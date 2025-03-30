@@ -7,7 +7,7 @@ use codonrs::analysis;
 /// Command-line arguments using Clap
 #[derive(Parser)]
 #[command(name = "codonrs")]
-#[command(version = "0.2.2")]
+#[command(version = "0.2.3")]
 #[command(about = "Analyze codon usage bias in DNA sequences", long_about = None)]
 struct Cli {
     /// Input DNA sequence file (FASTA or plain text)

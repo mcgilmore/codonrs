@@ -10,11 +10,11 @@ use codonrs::analysis;
 #[command(version = "0.2.3")]
 #[command(about = "Analyze codon usage bias in DNA sequences", long_about = None)]
 struct Cli {
-    /// Input DNA sequence file (FASTA or plain text)
+    /// Input coding DNA sequence file (FASTA)
     #[arg(short = 'i', long = "input")]
     input_file: String,
 
-    /// Output file for results
+    /// Output filename prefix for results
     #[arg(short = 'o', long = "output")]
     output_file: String,
 
@@ -22,7 +22,7 @@ struct Cli {
     #[arg(short = 't', long = "table", default_value_t = 1)]
     translation_table: u8,
 
-    /// Flag to compute and output Z-score
+    /// Compute and output Z-score for RSCU values compared to whole-genome mean for each codon
     #[arg(short = 'z', long = "zscore", default_value_t = false)]
     compute_zscore: bool,
 }

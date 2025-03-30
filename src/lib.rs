@@ -147,7 +147,6 @@ pub mod analysis {
     ///
     /// A vector of tuples, where each tuple contains the sequence name and its corresponding codon counts.
     pub fn count_codons_for_sequences(sequences: &Vec<(String, String)>) -> Vec<(String, HashMap<String, usize>)> {
-        use rayon::prelude::*;
         sequences.par_iter()
             .map(|(name, sequence)| (name.clone(), count_codons(sequence)))
             .collect()

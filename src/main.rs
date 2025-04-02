@@ -1,5 +1,5 @@
 use clap::Parser;
-use simple_tqdm::{ParTqdm};
+use simple_tqdm::ParTqdm;
 use std::collections::HashMap;
 use rayon::prelude::*;
 use codonrs::analysis;

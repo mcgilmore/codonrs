@@ -241,6 +241,7 @@ version = "0.2.3"
 dependencies = [
  "bio",
  "clap",
+ "csv",
  "rayon",
  "serde",
  "serde_json",

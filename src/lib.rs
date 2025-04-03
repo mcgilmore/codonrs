@@ -4,8 +4,9 @@ pub mod analysis {
     use std::collections::{HashMap, HashSet};
     use std::error::Error;
     use std::fs::File;
-    use std::io::{self, BufRead, BufReader, Write};
+    use std::io::{self, BufRead, BufReader};
     use rayon::prelude::*;
+    use csv::Writer;
 
     static CODE_FILE: &str = include_str!("genetic_code.json");
 
@@ -200,7 +201,7 @@ pub mod analysis {
         filename: &str,
         rscu_data: &Vec<(String, HashMap<String, f64>)>,
     ) -> std::io::Result<()> {
-        let mut file = File::create(filename)?;
+        let mut writer = Writer::from_path(filename)?;
 
         // Collect all unique codons across sequences to create CSV headers
         let mut codon_set = HashSet::new();
@@ -213,27 +214,26 @@ pub mod analysis {
         let mut codons: Vec<String> = codon_set.into_iter().collect();
         codons.sort(); // Ensure consistent order
 
-        // Write the CSV header
-        write!(file, "Sequence")?;
-        for codon in &codons {
-            write!(file, ",{}", codon)?;
-        }
-        writeln!(file)?;
+        // Write the header row: first column "Sequence", then one column per codon.
+        let mut header = vec!["Sequence".to_string()];
+        header.extend(codons.clone());
+        writer.write_record(&header)?;
 
-        // Write RSCU values for each sequence
+        // Write RSCU values for each sequence.
         for (seq_name, codon_map) in rscu_data {
-            write!(file, "{}", seq_name)?;
+            let mut record = vec![seq_name.clone()];
             for codon in &codons {
-                let rscu_value = codon_map.get(codon).unwrap_or(&0.0);
-                write!(file, ",{:.6}", rscu_value)?;
+                // Format the RSCU value to ten decimal places.
+                let value = codon_map.get(codon).unwrap_or(&0.0);
+                record.push(format!("{:.10}", value));
             }
-            writeln!(file)?;
+            writer.write_record(&record)?;
         }
-
+        writer.flush()?;
         Ok(())
     }
 
-    /// Compute the mean RSCU value for each codon
+    /// Compute the mean RSCU value for each codon across the genome
     pub fn compute_mean_rscu(rscu_results: &Vec<(String, HashMap<String, f64>)>) -> HashMap<String, f64> {
         let mut total_rscu: HashMap<String, f64> = HashMap::new();
         let gene_count = rscu_results.len() as f64;
@@ -302,7 +302,7 @@ pub mod analysis {
         filename: &str,
         z_scores: &Vec<(String, HashMap<String, f64>)>,
     ) -> io::Result<()> {
-        let mut file = File::create(filename)?;
+        let mut writer = Writer::from_path(filename)?;
 
         let mut codon_set = HashSet::new();
         for (_, codon_map) in z_scores {
@@ -314,23 +314,21 @@ pub mod analysis {
         let mut codons: Vec<String> = codon_set.into_iter().collect();
         codons.sort();
 
-        // Write header
-        write!(file, "Gene")?;
-        for codon in &codons {
-            write!(file, ",{}", codon)?;
-        }
-        writeln!(file)?;
+        // Write header.
+        let mut header = vec!["Gene".to_string()];
+        header.extend(codons.clone());
+        writer.write_record(&header)?;
 
-        // Write Z-scores for each gene
+        // Write Z-scores for each gene.
         for (gene, codon_map) in z_scores {
-            write!(file, "{}", gene)?;
+            let mut record = vec![gene.clone()];
             for codon in &codons {
                 let z_score = codon_map.get(codon).unwrap_or(&0.0);
-                write!(file, ",{:.6}", z_score)?;
+                record.push(format!("{:.10}", z_score));
             }
-            writeln!(file)?;
+            writer.write_record(&record)?;
         }
-
+        writer.flush()?;
         Ok(())
     }
 
@@ -360,86 +358,97 @@ pub mod analysis {
         amino_acid_counts
     }
 
-    /// Write codon and amino acid counts to a CSV file
+    /// Write codon counts to a CSV file
     ///
     /// # Arguments
     ///
     /// * filename_prefix: str to be used as prefix for output files
     /// * codon_data: The codon counts to be written
-    /// * amino_acid_data: The amino acid counts to be written
     /// 
     /// # Returns
     ///
-    /// A result with two output files: `prefix`_codon.csv for codons and `prefix`_amino_acids.csv for amino acids
-    pub fn write_counts_to_csv(
+    /// A result with an output file: `prefix`_codon.csv
+    pub fn write_codon_counts_to_csv(
         filename_prefix: &str,
         codon_data: &Vec<(String, HashMap<String, usize>)>,
-        amino_acid_data: &Vec<(String, HashMap<String, usize>)>,
     ) -> std::io::Result<()> {
+
         let codon_filename = format!("{}_codon.csv", filename_prefix);
-        let amino_filename = format!("{}_amino_acids.csv", filename_prefix);
-
-        // Create files
-        let mut codon_file = File::create(&codon_filename)?;
-        let mut amino_file = File::create(&amino_filename)?;
-
-        // Collect all unique codons and amino acids across sequences
+        let mut codon_writer = Writer::from_path(codon_filename)?;
+    
+        // Collect all unique codons across sequences.
         let mut codon_set = HashSet::new();
-        let mut amino_acid_set = HashSet::new();
-
         for (_, codon_map) in codon_data {
             for codon in codon_map.keys() {
                 codon_set.insert(codon.clone());
             }
         }
+        let mut codons: Vec<String> = codon_set.into_iter().collect();
+        codons.sort(); // Ensure consistent order
+    
+        // Write the header row: "Sequence", then one column per codon.
+        let mut header = vec!["Sequence".to_string()];
+        header.extend(codons.clone());
+        codon_writer.write_record(&header)?;
+    
+        // Write codon counts for each sequence.
+        for (seq_name, codon_map) in codon_data {
+            let mut record = vec![seq_name.clone()];
+            for codon in &codons {
+                let count = codon_map.get(codon).unwrap_or(&0);
+                record.push(count.to_string());
+            }
+            codon_writer.write_record(&record)?;
+        }
+        codon_writer.flush()?;
+        Ok(())
+    }
 
+    /// Write amino acid counts to a CSV file
+    ///
+    /// # Arguments
+    ///
+    /// * filename_prefix: str to be used as prefix for output files
+    /// * amino_acid_data: The amino acid counts to be written
+    /// 
+    /// # Returns
+    ///
+    /// A result with an output files: `prefix`_amino_acids.csv for amino acids
+    pub fn write_amino_acid_counts_to_csv(
+        filename_prefix: &str,
+        amino_acid_data: &Vec<(String, HashMap<String, usize>)>,
+    ) -> std::io::Result<()> {
+        let amino_filename = format!("{}_amino_acids.csv", filename_prefix);
+        let mut amino_writer = Writer::from_path(amino_filename)?;
+    
+        // Collect all unique amino acids across sequences.
+        let mut amino_acid_set = HashSet::new();
         for (_, amino_map) in amino_acid_data {
             for amino in amino_map.keys() {
                 amino_acid_set.insert(amino.clone());
             }
         }
-
-        let mut codons: Vec<String> = codon_set.into_iter().collect();
         let mut amino_acids: Vec<String> = amino_acid_set.into_iter().collect();
-        codons.sort(); // Ensure consistent order
-        amino_acids.sort();
-
-        // Write the CSV header for codons
-        write!(codon_file, "Sequence")?;
-        for codon in &codons {
-            write!(codon_file, ",{}", codon)?;
-        }
-        writeln!(codon_file)?;
-
-        // Write codon counts for each sequence
-        for (seq_name, codon_map) in codon_data {
-            write!(codon_file, "{}", seq_name)?;
-            for codon in &codons {
-                let count = codon_map.get(codon).unwrap_or(&0);
-                write!(codon_file, ",{}", count)?;
-            }
-            writeln!(codon_file)?;
-        }
-
-        // Write the CSV header for amino acids
-        write!(amino_file, "Sequence")?;
-        for amino in &amino_acids {
-            write!(amino_file, ",{}", amino)?;
-        }
-        writeln!(amino_file)?;
-
-        // Write amino acid counts for each sequence
+        amino_acids.sort(); // Ensure consistent order
+    
+        // Write the header row: "Sequence", then one column per amino acid.
+        let mut header = vec!["Sequence".to_string()];
+        header.extend(amino_acids.clone());
+        amino_writer.write_record(&header)?;
+    
+        // Write amino acid counts for each sequence.
         for (seq_name, amino_map) in amino_acid_data {
-            write!(amino_file, "{}", seq_name)?;
+            let mut record = vec![seq_name.clone()];
             for amino in &amino_acids {
                 let count = amino_map.get(amino).unwrap_or(&0);
-                write!(amino_file, ",{}", count)?;
+                record.push(count.to_string());
             }
-            writeln!(amino_file)?;
+            amino_writer.write_record(&record)?;
         }
-
+        amino_writer.flush()?;
         Ok(())
     }
+
 
     /// Read sequences from a multi-FASTA file
     ///

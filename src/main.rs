@@ -76,21 +76,31 @@ fn main() {
                 rscu_results.push((seq_name, rscu_values));
             }
 
-            print!("Writing results to CSV...\n");
+            
             // Write Codon & Amino Acid Counts to CSV
-            analysis::write_counts_to_csv(
-                &args.output_file,
-                &codon_counts_list,
-                &amino_acid_counts_list,
-            )
-            .unwrap();
+            match analysis::write_codon_counts_to_csv(&args.output_file, &codon_counts_list) {
+                Ok(()) => print!("Codon counts written to {}_codon.csv\n", &args.output_file),
+                Err(err) => {
+                    eprintln!("Error writing codon counts to CSV: {}", err);
+                    std::process::exit(1);
+                }
+            };
+
+            // Write Codon & Amino Acid Counts to CSV
+            match analysis::write_amino_acid_counts_to_csv(&args.output_file, &amino_acid_counts_list) {
+                Ok(()) => print!("Amino acid counts written to {}_amino_acids.csv\n", &args.output_file),
+                Err(err) => {
+                    eprintln!("Error amino acid counts to CSV: {}", err);
+                    std::process::exit(1);
+                }
+            };
 
             // Write RSCU values to a single CSV file
             let rscu_filename = format!("{}_rscu.csv", args.output_file);
             analysis::write_rscu_to_csv(&rscu_filename, &rscu_results).unwrap();
 
             if args.compute_zscore {
-                println!("Computing and saving RSCU Z-scores...");
+                println!("\nComputing and saving RSCU Z-scores...");
 
                 // Compute RSCU Z-scores
                 let mean_rscu = analysis::compute_mean_rscu(&rscu_results);
@@ -103,11 +113,6 @@ fn main() {
 
                 println!("RSCU Z-scores saved to {}", z_score_filename);
             }
-
-            println!(
-                "Results saved to:\n - {}_counts.csv\n - {}_amino_acids.csv\n - {}_rscu.csv",
-                &args.output_file, &args.output_file, &args.output_file,
-            );
         }
         Err(e) => eprintln!("Error reading file: {}", e),
     }

@@ -7,7 +7,7 @@ use codonrs::analysis;
 /// Command-line arguments using Clap
 #[derive(Parser)]
 #[command(name = "codonrs")]
-#[command(version = "0.2.3")]
+#[command(version = "0.2.4")]
 #[command(about = "Analyze codon usage bias in DNA sequences", long_about = None)]
 struct Cli {
     /// Input coding DNA sequence file (FASTA)
@@ -76,7 +76,6 @@ fn main() {
                 rscu_results.push((seq_name, rscu_values));
             }
 
-            
             // Write Codon & Amino Acid Counts to CSV
             match analysis::write_codon_counts_to_csv(&args.output_file, &codon_counts_list) {
                 Ok(()) => print!("Codon counts written to {}_codon.csv\n", &args.output_file),
@@ -111,7 +110,7 @@ fn main() {
                 let z_score_filename = format!("{}_rscu_z_scores.csv", args.output_file);
                 analysis::write_z_scores_to_csv(&z_score_filename, &rscu_z_scores).unwrap();
 
-                println!("RSCU Z-scores saved to {}", z_score_filename);
+                println!("RSCU Z-scores saved to {}\n", z_score_filename);
             }
         }
         Err(e) => eprintln!("Error reading file: {}", e),

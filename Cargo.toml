@@ -1,6 +1,6 @@
 [package]
 name = "codonrs"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 license = "GPL-3.0"
 repository = "https://github.com/mcgilmore/codonrs"
@@ -8,10 +8,10 @@ description = "Calculate relative synonymous codon usage for coding DNA sequence
 exclude = ["tests/cds_adapted.fasta"]
 
 [dependencies]
-bio = "2.0.3"
-clap = { version = "4.5.32", features = ["derive"] }
+bio = "2.2.0"
+clap = { version = "4.5.35", features = ["derive"] }
 csv = "1.3.1"
 rayon = "1.10.0"
-serde = "1.0.217"
-serde_json = "1.0.138"
+serde = "1.0.219"
+serde_json = "1.0.140"
 simple-tqdm = { version = "0.2.0", features = ["rayon"] }

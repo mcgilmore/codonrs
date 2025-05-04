@@ -18,7 +18,7 @@ struct Cli {
     #[arg(short = 'o', long = "output")]
     output_file: String,
 
-    /// NCBI translation table ID (default: 1)
+    /// NCBI translation table ID
     #[arg(short = 't', long = "table", default_value_t = 1)]
     translation_table: u8,
 
@@ -31,7 +31,7 @@ fn main() {
     let args = Cli::parse();
 
     let code = analysis::genetic_code_from_id(&args.translation_table);
-    
+
     match analysis::read_sequences_from_fasta(&args.input_file) {
         Ok(sequences) => {
             println!("Computing RSCU values for sequences in {}...", &args.input_file);
@@ -54,11 +54,11 @@ fn main() {
                             .find(|(name, _)| name.as_str() == seq_name.as_str())
                             .map(|(_, seq)| seq)
                             .expect("Sequence not found");
-                        
+
                         // Compute additional metrics for this sequence.
                         let amino_acid_counts = analysis::count_amino_acids(sequence, &code);
                         let rscu_values = analysis::compute_rscu(&codon_counts, &code);
-                        
+
                         Some((seq_name, codon_counts, amino_acid_counts, rscu_values))
                     }
                 })

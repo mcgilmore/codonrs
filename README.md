@@ -2,7 +2,7 @@
 
 `codonrs` is a small crate for rapidly calculating relative synonymous codon usage (RSCU)
 values for coding DNA sequences, for analyses of codon usage bias. The crate can be used
-as a command-line utility with the `codonrs` command, or used in other crates via the analysis mod.
+as a command-line utility with the `codonrs` command, or used in other crates via the analysis module.
 
 ### Command-line usage
 

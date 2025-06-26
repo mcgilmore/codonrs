@@ -186,8 +186,6 @@ pub mod analysis {
     ///
     /// A result with a HashMap mapping codon strings to their RSCU value
     pub fn compute_rscu(codon_counts: &HashMap<String, usize>, code: &GeneticCode) -> HashMap<String, f64> {
-        use rayon::prelude::*;
-        
         let codon_table = &code.codon_map;
         let mut amino_acid_totals: HashMap<&str, usize> = HashMap::new();
         let mut synonymous_codons: HashMap<&str, Vec<&str>> = HashMap::new();

@@ -12,4 +12,4 @@ start = "cargo run"
 readme = "cargo readme > README.md"
 
 [dependencies]
-rust = ">=1.87.0,<1.88"
+rust = ">=1.91.0,<1.92"

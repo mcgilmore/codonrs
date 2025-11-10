@@ -7,7 +7,7 @@ use std::collections::HashMap;
 /// Command-line arguments using Clap
 #[derive(Parser)]
 #[command(name = "codonrs")]
-#[command(version = "0.2.6")]
+#[command(version = "0.2.8")]
 #[command(about = "Analyze codon usage bias in DNA sequences", long_about = None)]
 struct Cli {
     /// Input coding DNA sequence file (FASTA)
@@ -16,7 +16,7 @@ struct Cli {
 
     /// Output filename prefix for results
     #[arg(short = 'o', long = "output")]
-    output_file: String,
+    output_prefix: String,
 
     /// NCBI translation table ID
     #[arg(short = 't', long = "table", default_value_t = 1)]
@@ -84,8 +84,8 @@ fn main() {
             }
 
             // Write Codon & Amino Acid Counts to CSV
-            match analysis::write_codon_counts_to_csv(&args.output_file, &codon_counts_list) {
-                Ok(()) => print!("Codon counts written to {}_codon.csv\n", &args.output_file),
+            match analysis::write_codon_counts_to_csv(&args.output_prefix, &codon_counts_list) {
+                Ok(()) => print!("Codon counts written to {}_codon.csv\n", &args.output_prefix),
                 Err(err) => {
                     eprintln!("Error writing codon counts to CSV: {}", err);
                     std::process::exit(1);
@@ -94,12 +94,12 @@ fn main() {
 
             // Write Codon & Amino Acid Counts to CSV
             match analysis::write_amino_acid_counts_to_csv(
-                &args.output_file,
+                &args.output_prefix,
                 &amino_acid_counts_list,
             ) {
                 Ok(()) => print!(
                     "Amino acid counts written to {}_amino_acids.csv\n",
-                    &args.output_file
+                    &args.output_prefix
                 ),
                 Err(err) => {
                     eprintln!("Error amino acid counts to CSV: {}", err);
@@ -108,7 +108,7 @@ fn main() {
             };
 
             // Write RSCU values to a single CSV file
-            let rscu_filename = format!("{}_rscu.csv", args.output_file);
+            let rscu_filename = format!("{}_rscu.csv", args.output_prefix);
             analysis::write_rscu_to_csv(&rscu_filename, &rscu_results).unwrap();
 
             if args.compute_zscore {
@@ -121,7 +121,7 @@ fn main() {
                     analysis::compute_rscu_z_scores(&rscu_results, &mean_rscu, &std_rscu);
 
                 // Write RSCU Z-scores to a CSV file
-                let z_score_filename = format!("{}_rscu_z_scores.csv", args.output_file);
+                let z_score_filename = format!("{}_rscu_z_scores.csv", args.output_prefix);
                 analysis::write_z_scores_to_csv(&z_score_filename, &rscu_z_scores).unwrap();
 
                 println!("RSCU Z-scores saved to {}\n", z_score_filename);

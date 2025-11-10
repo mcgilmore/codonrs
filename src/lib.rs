@@ -1,34 +1,34 @@
 //! `codonrs` is a small crate for rapidly calculating relative synonymous codon usage (RSCU)
-//! values for coding DNA sequences, for analyses of codon usage bias. The crate can be used 
-//! as a command-line utility with the `codonrs` command, or used in other crates via the analysis mod.
-//! 
+//! values for coding DNA sequences, for analyses of codon usage bias. The crate can be used
+//! as a command-line utility with the `codonrs` command, or used in other crates via the analysis module.
+//!
 //! ## Command-line usage
-//! 
+//!
 //! ### Required arguments
-//! 
+//!
 //! **Input**: `-i`/`--input`: A multi-fasta file with the sequences to be analysed as individual
 //! fasta entries. Sequences whose length is not a multiple of three will be ignored
-//! 
+//!
 //! **Output**: `-o`/`--output`: Prefix for the output files. Three files are output by default:
 //!   - `prefix`_codon.csv: raw codon counts for each CDS.
 //!   - `prefix`_amino_acids.csv: amino acid counts for each CDS, determined from the chosen translation table.
 //!   - `prefix`_rscu.csv: calculated RSCU values for each CDS.
-//! 
+//!
 //! ### Optional arguments
-//! 
-//! **Translation table**: `-t`/`--table`: Integer representing NCBI translation table to be used for codon 
+//!
+//! **Translation table**: `-t`/`--table`: Integer representing NCBI translation table to be used for codon
 //! counts and RSCU calculation. See tables [here](https://www.ncbi.nlm.nih.gov/Taxonomy/taxonomyhome.html/index.cgi?chapter=cgencodes).
 //! Defaults to 1: the standard code.
-//! 
-//! 
+//!
+//!
 pub mod analysis {
+    use csv::Writer;
+    use rayon::prelude::*;
     use serde::{Deserialize, Serialize};
     use std::collections::{HashMap, HashSet};
     use std::error::Error;
     use std::fs::File;
     use std::io::{self, BufRead, BufReader};
-    use rayon::prelude::*;
-    use csv::Writer;
 
     static CODE_FILE: &str = include_str!("genetic_code.json");
 
@@ -169,8 +169,11 @@ pub mod analysis {
     /// # Returns
     ///
     /// A vector of tuples, where each tuple contains the sequence name and its corresponding codon counts.
-    pub fn count_codons_for_sequences(sequences: &Vec<(String, String)>) -> Vec<(String, HashMap<String, usize>)> {
-        sequences.par_iter()
+    pub fn count_codons_for_sequences(
+        sequences: &Vec<(String, String)>,
+    ) -> Vec<(String, HashMap<String, usize>)> {
+        sequences
+            .par_iter()
             .map(|(name, sequence)| (name.clone(), count_codons(sequence)))
             .collect()
     }
@@ -185,36 +188,44 @@ pub mod analysis {
     /// # Returns
     ///
     /// A result with a HashMap mapping codon strings to their RSCU value
-    pub fn compute_rscu(codon_counts: &HashMap<String, usize>, code: &GeneticCode) -> HashMap<String, f64> {
-        use rayon::prelude::*;
-        
+    pub fn compute_rscu(
+        codon_counts: &HashMap<String, usize>,
+        code: &GeneticCode,
+    ) -> HashMap<String, f64> {
         let codon_table = &code.codon_map;
         let mut amino_acid_totals: HashMap<&str, usize> = HashMap::new();
         let mut synonymous_codons: HashMap<&str, Vec<&str>> = HashMap::new();
-        
+
         // Group codons by their amino acid and count occurrences
         for (codon, amino_acid) in codon_table {
             synonymous_codons
                 .entry(amino_acid)
                 .or_insert_with(Vec::new)
                 .push(codon);
-            *amino_acid_totals.entry(amino_acid).or_insert(0) += codon_counts.get(codon).copied().unwrap_or(0);
+            *amino_acid_totals.entry(amino_acid).or_insert(0) +=
+                codon_counts.get(codon).copied().unwrap_or(0);
         }
-        
+
         // Compute RSCU values in parallel
-        let rscu_pairs: Vec<(String, f64)> = synonymous_codons.par_iter()
+        let rscu_pairs: Vec<(String, f64)> = synonymous_codons
+            .par_iter()
             .flat_map(|(amino_acid, codons)| {
-                let total_codon_count = amino_acid_totals.get(amino_acid).copied().unwrap_or(0) as f64;
+                let total_codon_count =
+                    amino_acid_totals.get(amino_acid).copied().unwrap_or(0) as f64;
                 let num_codons = codons.len() as f64;
                 codons.par_iter().map(move |codon| {
                     let observed = *codon_counts.get(*codon).unwrap_or(&0) as f64;
                     let expected = total_codon_count / num_codons;
-                    let rscu = if expected > 0.0 { observed / expected } else { 0.0 };
+                    let rscu = if expected > 0.0 {
+                        observed / expected
+                    } else {
+                        0.0
+                    };
                     ((*codon).to_string(), rscu)
                 })
             })
             .collect();
-        
+
         rscu_pairs.into_iter().collect()
     }
 
@@ -256,7 +267,9 @@ pub mod analysis {
     }
 
     /// Compute the mean RSCU value for each codon across the genome
-    pub fn compute_mean_rscu(rscu_results: &Vec<(String, HashMap<String, f64>)>) -> HashMap<String, f64> {
+    pub fn compute_mean_rscu(
+        rscu_results: &Vec<(String, HashMap<String, f64>)>,
+    ) -> HashMap<String, f64> {
         let mut total_rscu: HashMap<String, f64> = HashMap::new();
         let gene_count = rscu_results.len() as f64;
 
@@ -304,9 +317,11 @@ pub mod analysis {
         mean_rscu: &HashMap<String, f64>,
         std_rscu: &HashMap<String, f64>,
     ) -> Vec<(String, HashMap<String, f64>)> {
-        rscu_results.par_iter()
+        rscu_results
+            .par_iter()
             .map(|(gene, rscu_map)| {
-                let gene_z_scores: HashMap<String, f64> = rscu_map.iter()
+                let gene_z_scores: HashMap<String, f64> = rscu_map
+                    .iter()
                     .map(|(codon, value)| {
                         let mean = mean_rscu.get(codon).unwrap_or(&0.0);
                         let std_dev = std_rscu.get(codon).unwrap_or(&1.0); // Avoid division by zero
@@ -386,7 +401,7 @@ pub mod analysis {
     ///
     /// * filename_prefix: str to be used as prefix for output files
     /// * codon_data: The codon counts to be written
-    /// 
+    ///
     /// # Returns
     ///
     /// A result with an output file: `prefix`_codon.csv
@@ -394,10 +409,9 @@ pub mod analysis {
         filename_prefix: &str,
         codon_data: &Vec<(String, HashMap<String, usize>)>,
     ) -> std::io::Result<()> {
-
         let codon_filename = format!("{}_codon.csv", filename_prefix);
         let mut codon_writer = Writer::from_path(codon_filename)?;
-    
+
         // Collect all unique codons across sequences.
         let mut codon_set = HashSet::new();
         for (_, codon_map) in codon_data {
@@ -407,12 +421,12 @@ pub mod analysis {
         }
         let mut codons: Vec<String> = codon_set.into_iter().collect();
         codons.sort(); // Ensure consistent order
-    
+
         // Write the header row: "Sequence", then one column per codon.
         let mut header = vec!["Sequence".to_string()];
         header.extend(codons.clone());
         codon_writer.write_record(&header)?;
-    
+
         // Write codon counts for each sequence.
         for (seq_name, codon_map) in codon_data {
             let mut record = vec![seq_name.clone()];
@@ -432,7 +446,7 @@ pub mod analysis {
     ///
     /// * filename_prefix: str to be used as prefix for output files
     /// * amino_acid_data: The amino acid counts to be written
-    /// 
+    ///
     /// # Returns
     ///
     /// A result with an output files: `prefix`_amino_acids.csv for amino acids
@@ -442,7 +456,7 @@ pub mod analysis {
     ) -> std::io::Result<()> {
         let amino_filename = format!("{}_amino_acids.csv", filename_prefix);
         let mut amino_writer = Writer::from_path(amino_filename)?;
-    
+
         // Collect all unique amino acids across sequences.
         let mut amino_acid_set = HashSet::new();
         for (_, amino_map) in amino_acid_data {
@@ -452,12 +466,12 @@ pub mod analysis {
         }
         let mut amino_acids: Vec<String> = amino_acid_set.into_iter().collect();
         amino_acids.sort(); // Ensure consistent order
-    
+
         // Write the header row: "Sequence", then one column per amino acid.
         let mut header = vec!["Sequence".to_string()];
         header.extend(amino_acids.clone());
         amino_writer.write_record(&header)?;
-    
+
         // Write amino acid counts for each sequence.
         for (seq_name, amino_map) in amino_acid_data {
             let mut record = vec![seq_name.clone()];
@@ -471,7 +485,6 @@ pub mod analysis {
         Ok(())
     }
 
-
     /// Read sequences from a multi-FASTA file
     ///
     /// # Arguments
@@ -479,7 +492,7 @@ pub mod analysis {
     /// * filename_prefix: str to be used as prefix for output files
     /// * codon_data: The codon counts to be written
     /// * amino_acid_data: The amino acid counts to be written
-    /// 
+    ///
     /// # Returns
     ///
     /// A result with two output files: `prefix`_codon.csv for codons and `prefix`_amino_acids.csv for amino acids

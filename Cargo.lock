@@ -236,7 +236,7 @@ checksum = "b94f61472cee1439c0b966b47e3aca9ae07e45d070759512cd390ea2bebc6675"
 
 [[package]]
 name = "codonrs"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "bio",
  "clap",
